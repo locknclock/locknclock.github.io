@@ -1,5 +1,3 @@
-// Signup.jsx
-
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserAuth } from '../context/AuthContext';
@@ -7,11 +5,11 @@ import PublicNavbar from './PublicNavbar';
 import Footer from './Footer';
 
 const HalfYearActivityDemo = () => {
-  const [metric, setMetric] = useState('hours'); // 'hours' | 'tasks'
+  const [metric, setMetric] = useState('hours');
 
   const startOfWeek = (d) => {
     const nd = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    const diff = nd.getDay(); // 0=Sun
+    const diff = nd.getDay();
     nd.setDate(nd.getDate() - diff);
     nd.setHours(0, 0, 0, 0);
     return nd;
@@ -21,39 +19,36 @@ const HalfYearActivityDemo = () => {
     const now = new Date();
     const year = now.getFullYear();
 
-    // Period: Jan 1 -> Jun 30 (inclusive)
-    const rangeStart = new Date(year, 0, 1);   // Jan 1
-    const rangeEnd   = new Date(year, 4, 15);  // Jun 30
+    // Jan 1 -> Jun 30
+    const rangeStart = new Date(year, 0, 1);
+    const rangeEnd = new Date(year, 5, 30);
     rangeStart.setHours(0, 0, 0, 0);
     rangeEnd.setHours(23, 59, 59, 999);
 
-    // Expand to full weeks for a nice grid
     const firstWeekStart = startOfWeek(rangeStart);
-    const lastWeekStart  = startOfWeek(rangeEnd);
-    const lastGridDate   = new Date(lastWeekStart);
-    lastGridDate.setDate(lastGridDate.getDate() + 6); // Saturday of last week
+    const lastWeekStart = startOfWeek(rangeEnd);
+    const lastGridDate = new Date(lastWeekStart);
+    lastGridDate.setDate(lastGridDate.getDate() + 6);
 
     const dayHash = (d) => {
-      const key = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
-      return (((key * 2654435761) >>> 0) % 1000) / 1000; // 0..1 deterministic
+      const key =
+        d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+      return (((key * 2654435761) >>> 0) % 1000) / 1000;
     };
 
     const weekendWeight = (d) => {
-      const dow = d.getDay(); // 0 Sun .. 6 Sat
-      if (dow === 0 || dow === 6) return 0.45; // weekends lower
-      if (dow === 5) return 0.85;              // Fridays slightly lower
-      return 1.0;                               // Mon–Thu
+      const dow = d.getDay();
+      if (dow === 0 || dow === 6) return 0.45;
+      if (dow === 5) return 0.85;
+      return 1.0;
     };
 
-    // Map raw 0..1 -> level 0..4, with metric-specific shaping
     const toLevel = (raw, d) => {
       const w = weekendWeight(d);
       const r = Math.min(1, raw * w);
 
-      // different feel per metric
-      const shaped = metric === 'tasks'
-        ? Math.pow(r, 1.2)  // sparser highs
-        : Math.pow(r, 0.9); // fuller mids
+      const shaped =
+        metric === 'tasks' ? Math.pow(r, 1.2) : Math.pow(r, 0.9);
 
       if (metric === 'hours') {
         if (shaped < 0.12) return 0;
@@ -61,13 +56,13 @@ const HalfYearActivityDemo = () => {
         if (shaped < 0.55) return 2;
         if (shaped < 0.78) return 3;
         return 4;
-      } else {
-        if (shaped < 0.30) return 0;
-        if (shaped < 0.50) return 1;
-        if (shaped < 0.70) return 2;
-        if (shaped < 0.86) return 3;
-        return 4;
       }
+
+      if (shaped < 0.3) return 0;
+      if (shaped < 0.5) return 1;
+      if (shaped < 0.7) return 2;
+      if (shaped < 0.86) return 3;
+      return 4;
     };
 
     const weeksArr = [];
@@ -76,7 +71,12 @@ const HalfYearActivityDemo = () => {
     for (
       let colStart = new Date(firstWeekStart), colIdx = 0;
       colStart <= lastGridDate;
-      colStart = new Date(colStart.getFullYear(), colStart.getMonth(), colStart.getDate() + 7), colIdx++
+      colStart = new Date(
+        colStart.getFullYear(),
+        colStart.getMonth(),
+        colStart.getDate() + 7
+      ),
+        colIdx++
     ) {
       const days = [];
       let monthLabel = null;
@@ -89,7 +89,7 @@ const HalfYearActivityDemo = () => {
         const lvl = inRange ? toLevel(dayHash(d), d) : -1;
 
         if (inRange && d.getDate() === 1 && d.getMonth() <= 5) {
-          monthLabel = d.toLocaleString(undefined, { month: 'short' }); // Jan..Jun
+          monthLabel = d.toLocaleString(undefined, { month: 'short' });
         }
 
         days.push({ date: d, lvl, inRange });
@@ -99,8 +99,7 @@ const HalfYearActivityDemo = () => {
       weeksArr.push(days);
     }
 
-    // Ensure first column labeled 'Jan'
-    if (!labels.some(l => l.index === 0)) {
+    if (!labels.some((l) => l.index === 0)) {
       labels.unshift({ index: 0, label: 'Jan' });
     }
 
@@ -108,36 +107,39 @@ const HalfYearActivityDemo = () => {
   }, [metric]);
 
   const tooltipFor = (date, lvl) => {
-    const ds = date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    const ds = date.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+
     if (lvl <= 0) return `${ds} • no activity`;
+
     if (metric === 'hours') {
       const ranges = ['0h', '1–2h', '2–3.5h', '3.5–6h', '6–10h'];
       return `${ds} • ${ranges[lvl]}`;
-    } else {
-      const counts = ['0 tasks', '1 task', '2 tasks', '3 tasks', '4–5 tasks'];
-      return `${ds} • ${counts[lvl]}`;
     }
+
+    const counts = ['0 tasks', '1 task', '2 tasks', '3 tasks', '4–5 tasks'];
+    return `${ds} • ${counts[lvl]}`;
   };
 
-  const isTasks = (metric === 'tasks');
+  const isTasks = metric === 'tasks';
 
   return (
     <div aria-label="Half-year activity demo" className="gh-heatmap">
-      {/* Spaced buttons */}
-      <div className="mb-3 flex items-center gap-2">
+      <div className="mb-4 flex items-center gap-2">
         <button
-          className={`px-3 py-1.5 border rounded-lg transition-colors ${
-            metric === 'hours' ? 'bg-white/5' : 'bg-transparent'
-          }`}
+          type="button"
+          className={metric === 'hours' ? 'button-primary' : 'button-subtle'}
           onClick={() => setMetric('hours')}
           aria-pressed={metric === 'hours'}
         >
           hours
         </button>
         <button
-          className={`px-3 py-1.5 border rounded-lg transition-colors ${
-            metric === 'tasks' ? 'bg-white/5' : 'bg-transparent'
-          }`}
+          type="button"
+          className={metric === 'tasks' ? 'button-primary' : 'button-subtle'}
           onClick={() => setMetric('tasks')}
           aria-pressed={metric === 'tasks'}
         >
@@ -145,41 +147,46 @@ const HalfYearActivityDemo = () => {
         </button>
       </div>
 
-      {/* Month labels */}
       <div className="gh-months mb-2 relative">
         {monthLabels.map(({ index, label }) => (
           <span
-            key={index + label}
+            key={`${index}-${label}`}
             style={{
               transform: `translateX(calc(${index} * (var(--hm-size) + var(--hm-gap))))`,
-              position: 'absolute'
+              position: 'absolute',
             }}
           >
             {label}
           </span>
         ))}
-        <span aria-hidden className="invisible">MMM</span>
+        <span aria-hidden className="invisible">
+          MMM
+        </span>
       </div>
 
       <div className="flex">
-        {/* Weekday labels column:
-            Render 7 rows (Sun..Sat), label only Mon(1)/Wed(3)/Fri(5) */}
         <div className="gh-days">
-          {[0,1,2,3,4,5,6].map((dow) => (
+          {[0, 1, 2, 3, 4, 5, 6].map((dow) => (
             <div className="row" key={dow}>
-              {dow === 0 ? 'Mon' : dow === 2 ? 'Wed' : dow === 4 ? 'Fri' : ''}
+              {dow === 1 ? 'Mon' : dow === 3 ? 'Wed' : dow === 5 ? 'Fri' : ''}
             </div>
           ))}
         </div>
 
-        {/* Weeks grid */}
         <div className="gh-grid">
           {weeks.map((week, wi) => (
             <div className="gh-week" key={wi}>
               {week.map((cell, di) => {
-                const cls = `gh-cell ${cell.lvl > 0 ? `gh-lvl-${cell.lvl}` : ''} ${cell.inRange ? '' : 'opacity-30'}`;
+                const cls = `gh-cell ${
+                  cell.lvl > 0 ? `gh-lvl-${cell.lvl}` : ''
+                } ${cell.inRange ? '' : 'opacity-30'}`;
+
                 const style = isTasks
-                  ? { borderRadius: '9999px', transform: 'scale(0.9)', transformOrigin: 'center' }
+                  ? {
+                      borderRadius: '9999px',
+                      transform: 'scale(0.9)',
+                      transformOrigin: 'center',
+                    }
                   : { borderRadius: '3px' };
 
                 return (
@@ -196,15 +203,39 @@ const HalfYearActivityDemo = () => {
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="mt-3 flex items-center gap-2 text-xs opacity-80">
-        <span className="mr-1">less.</span>
-        <span className="gh-cell" style={isTasks ? { borderRadius: '9999px', transform: 'scale(0.9)' } : undefined}/>
-        <span className="gh-cell gh-lvl-1" style={isTasks ? { borderRadius: '9999px', transform: 'scale(0.9)' } : undefined}/>
-        <span className="gh-cell gh-lvl-2" style={isTasks ? { borderRadius: '9999px', transform: 'scale(0.9)' } : undefined}/>
-        <span className="gh-cell gh-lvl-3" style={isTasks ? { borderRadius: '9999px', transform: 'scale(0.9)' } : undefined}/>
-        <span className="gh-cell gh-lvl-4" style={isTasks ? { borderRadius: '9999px', transform: 'scale(0.9)' } : undefined}/>
-        <span className="ml-1">more.</span>
+      <div className="meta-text mt-4 flex items-center gap-2">
+        <span>less</span>
+        <span
+          className="gh-cell"
+          style={
+            isTasks ? { borderRadius: '9999px', transform: 'scale(0.9)' } : undefined
+          }
+        />
+        <span
+          className="gh-cell gh-lvl-1"
+          style={
+            isTasks ? { borderRadius: '9999px', transform: 'scale(0.9)' } : undefined
+          }
+        />
+        <span
+          className="gh-cell gh-lvl-2"
+          style={
+            isTasks ? { borderRadius: '9999px', transform: 'scale(0.9)' } : undefined
+          }
+        />
+        <span
+          className="gh-cell gh-lvl-3"
+          style={
+            isTasks ? { borderRadius: '9999px', transform: 'scale(0.9)' } : undefined
+          }
+        />
+        <span
+          className="gh-cell gh-lvl-4"
+          style={
+            isTasks ? { borderRadius: '9999px', transform: 'scale(0.9)' } : undefined
+          }
+        />
+        <span>more</span>
       </div>
     </div>
   );
@@ -223,117 +254,148 @@ const Signup = () => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const { error } = await signUpNewUser(email, password);
+
+    const { data, error } = await signUpNewUser(email, password);
+
     setLoading(false);
+
     if (error) {
       setError(error.message || 'Failed to sign up');
       return;
     }
-    if (session) navigate('/dashboard');
-    else navigate('/signin');
+
+    if (data?.session || session) {
+      navigate('/dashboard');
+    } else {
+      navigate('/signin');
+    }
   };
 
   return (
     <>
       <PublicNavbar />
-      <main className="pt-20 px-4 text-[var(--fg)]">
-        <div className="max-w-5xl mx-auto grid gap-8 lg:grid-cols-2">
-          {/* Card: Sign up form */}
-          <section className="border rounded-3xl p-6">
-            <h1 className="text-3xl font-bold">create an account. </h1>
-            <p className="opacity-80 text-sm mt-1">
-              a simple way to timebox your work and journal what you accomplished.
+
+      <main className="app-shell">
+        <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+          <section className="surface-row p-6 sm:p-7 lg:p-8">
+            <p className="section-title">create account</p>
+
+            <h1 className="mt-4 text-4xl font-semibold tracking-tight text-[var(--fg)] sm:text-5xl">
+              create your workspace
+            </h1>
+
+            <p className="meta-text mt-4 max-w-md">
+              a simple place to track focused sessions, keep a working journal,
+              and move tasks forward.
             </p>
 
-            <form onSubmit={handleSignUp} className="mt-6 space-y-4">
+            <form onSubmit={handleSignUp} className="mt-8 space-y-5">
               <div>
-                <label htmlFor="email" className="block text-sm mb-1 opacity-80">
-                  email.
+                <label
+                  htmlFor="email"
+                  className="mb-2 block text-sm text-[var(--muted)]"
+                >
+                  email
                 </label>
                 <input
                   id="email"
                   type="email"
                   required
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-transparent border rounded-lg p-3"
+                  className="input-minimal"
                   placeholder="you@example.com"
                 />
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-sm mb-1 opacity-80">
-                  password.
+                <label
+                  htmlFor="password"
+                  className="mb-2 block text-sm text-[var(--muted)]"
+                >
+                  password
                 </label>
                 <input
                   id="password"
                   type="password"
                   required
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-transparent border rounded-lg p-3"
+                  className="input-minimal"
                   placeholder="••••••••"
                 />
               </div>
 
+              {error && <p className="text-sm text-red-400">{error}</p>}
+
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full mt-2 border rounded-lg py-2 hover:border-[var(--border)] disabled:opacity-60"
+                className="button-primary w-full disabled:opacity-60"
               >
-                {loading ? 'creating account…' : 'sign up.'}
+                {loading ? 'creating account…' : 'sign up'}
               </button>
 
-              {error && <p className="text-red-500 text-sm">{error}</p>}
-
-              <p className="opacity-80 text-sm pt-2">
+              <p className="meta-text pt-1">
                 already have an account?{' '}
-                <Link to="/signin" className="underline font-semibold">
-                  sign in.
+                <Link
+                  to="/signin"
+                  className="no-underline text-[var(--fg)] transition hover:text-[var(--link)]"
+                >
+                  sign in
                 </Link>
+                .
               </p>
             </form>
           </section>
 
-          {/* Helpful cards */}
           <section className="space-y-4">
-            <div className="p-4 border rounded-2xl">
-              <h3 className="font-semibold mb-1">how it works.</h3>
-              <p className="opacity-80 text-sm">
-                start a focus session, do the work, and jot a short note. your
-                note and duration show up in history.
+            <div className="surface-row p-5">
+              <p className="section-title">how it works</p>
+              <p className="meta-text mt-3">
+                start a focus session, do the work, then save a short review so
+                it becomes part of your history.
               </p>
             </div>
 
-            <div className="p-4 border rounded-2xl">
-              <h3 className="font-semibold mb-1">why journal?</h3>
-              <p className="opacity-80 text-sm">
-                quick summaries make weekly reviews effortless and help you see
-                progress over time.
+            <div className="surface-row p-5">
+              <p className="section-title">why journal</p>
+              <p className="meta-text mt-3">
+                quick summaries make weekly reviews easier and help you see
+                real progress over time.
               </p>
             </div>
 
-            <div className="p-4 border rounded-2xl">
-              <h3 className="font-semibold mb-1">privacy.</h3>
-              <p className="opacity-80 text-sm">
-                your entries are visible only to you. data is stored securely in
-                a Supabase project with row-level policies.
+            <div className="surface-row p-5">
+              <p className="section-title">privacy</p>
+              <p className="meta-text mt-3">
+                your entries are visible only to you, with row-level protections
+                in your Supabase-backed data model.
               </p>
             </div>
 
-            {/* NEW: Half-year example activity heatmap with toggle */}
-            <div className="p-4 border rounded-2xl">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold">visualize activity.</h3>
+            <div className="surface-row p-5">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="section-title">activity preview</p>
+                  <p className="meta-text mt-3">
+                    switch between time spent and completed tasks.
+                  </p>
+                </div>
               </div>
-              <HalfYearActivityDemo />
-              <p className="opacity-70 text-xs mt-3">
-                toggle between hours and tasks.
-              </p>
+
+              <div className="mt-4 overflow-x-auto">
+                <div className="w-max min-w-full">
+                  <HalfYearActivityDemo />
+                </div>
+              </div>
             </div>
           </section>
         </div>
       </main>
+
       <Footer />
     </>
   );
