@@ -2,15 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { UserAuth } from '../context/AuthContext';
 
-/** Task card:
- *  - single-column card
- *  - clickable header toggles dropdown with subtasks
- *  - edit/delete task
- *  - add/edit/delete subtasks
- *  - checkbox to complete subtasks
- *  - mark-done for tasks with no subtasks
- *  - reopen button for inactive tasks
- */
 const TaskCard = ({
   task,
   subs,
@@ -29,7 +20,7 @@ const TaskCard = ({
   const [taskEditValue, setTaskEditValue] = useState(task.title);
   const [editingId, setEditingId] = useState(null);
   const [editValue, setEditValue] = useState('');
-  const [isOpen, setIsOpen] = useState(false); // dropdown collapsed by default
+  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     if (!editingTask) setTaskEditValue(task.title);
@@ -84,8 +75,7 @@ const TaskCard = ({
   };
 
   return (
-    <div className="border rounded-2xl">
-      {/* Header row: behaves like the dashboard's active-tasks accordion */}
+    <div className={`surface-row ${isInactive ? 'surface-row--inactive' : ''}`}>
       <div
         role="button"
         tabIndex={editingTask ? -1 : 0}
@@ -93,13 +83,12 @@ const TaskCard = ({
           if (!editingTask) setIsOpen((prev) => !prev);
         }}
         onKeyDown={handleHeaderKeyDown}
-        className="w-full p-3 flex items-center justify-between gap-3 text-left cursor-pointer"
+        className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left"
         aria-expanded={isOpen}
       >
-        <div className="min-w-0 flex items-center gap-2 flex-1">
-          {/* caret */}
+        <div className="min-w-0 flex flex-1 items-center gap-3">
           <svg
-            className={`shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`}
+            className={`shrink-0 text-white/45 transition-transform ${isOpen ? 'rotate-90' : ''}`}
             width="14"
             height="14"
             viewBox="0 0 20 20"
@@ -113,7 +102,7 @@ const TaskCard = ({
           {editingTask ? (
             <input
               autoFocus
-              className="flex-1 min-w-0 bg-transparent border rounded-lg p-2 text-sm font-semibold"
+              className="input-compact flex-1 min-w-0"
               value={taskEditValue}
               onClick={(e) => e.stopPropagation()}
               onChange={(e) => setTaskEditValue(e.target.value)}
@@ -124,15 +113,18 @@ const TaskCard = ({
               }}
             />
           ) : (
-            <span className="font-semibold truncate" title={task.title}>
+            <span
+              className={`task-title truncate ${isInactive ? 'task-title--inactive' : ''}`}
+              title={task.title}
+            >
               {task.title}
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap justify-end">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
           {!editingTask && hasSubs && (
-            <span className="text-xs opacity-70 whitespace-nowrap">
+            <span className="meta-text hidden sm:block whitespace-nowrap">
               {incompleteCount > 0
                 ? `${incompleteCount} subtask${incompleteCount > 1 ? 's' : ''} left`
                 : 'all subtasks complete'}
@@ -140,7 +132,7 @@ const TaskCard = ({
           )}
 
           {!editingTask && !hasSubs && !isInactive && (
-            <span className="text-xs opacity-70 whitespace-nowrap">
+            <span className="meta-text hidden sm:block whitespace-nowrap">
               no subtasks
             </span>
           )}
@@ -149,7 +141,7 @@ const TaskCard = ({
             <>
               <button
                 type="button"
-                className="px-3 py-1.5 border rounded-lg hover:border-[var(--border)] text-xs"
+                className="button-subtle"
                 onClick={(e) => {
                   e.stopPropagation();
                   saveTaskEdit();
@@ -159,7 +151,7 @@ const TaskCard = ({
               </button>
               <button
                 type="button"
-                className="px-3 py-1.5 border rounded-lg hover:border-[var(--border)] text-xs"
+                className="button-ghost"
                 onClick={(e) => {
                   e.stopPropagation();
                   cancelTaskEdit();
@@ -172,7 +164,7 @@ const TaskCard = ({
             <>
               <button
                 type="button"
-                className="px-3 py-1.5 border rounded-lg hover:border-[var(--border)] text-xs"
+                className="button-ghost"
                 onClick={(e) => {
                   e.stopPropagation();
                   startTaskEdit();
@@ -184,20 +176,20 @@ const TaskCard = ({
               {!hasSubs && !isInactive && (
                 <button
                   type="button"
-                  className="px-3 py-1.5 border rounded-lg hover:border-[var(--border)] text-xs"
+                  className="button-ghost"
                   onClick={(e) => {
                     e.stopPropagation();
                     onToggleTaskDoneNoSubs(task);
                   }}
                 >
-                  {task.completed_at ? 'Reopen' : 'mark done'}
+                  {task.completed_at ? 'reopen' : 'done'}
                 </button>
               )}
 
               {isInactive && (
                 <button
                   type="button"
-                  className="px-3 py-1.5 border rounded-lg hover:border-[var(--border)] text-xs"
+                  className="button-ghost"
                   onClick={(e) => {
                     e.stopPropagation();
                     onReopenTask(task);
@@ -209,7 +201,7 @@ const TaskCard = ({
 
               <button
                 type="button"
-                className="px-3 py-1.5 border rounded-lg hover:border-red-400 text-xs"
+                className="button-danger"
                 onClick={(e) => {
                   e.stopPropagation();
                   onDeleteTask(task);
@@ -222,31 +214,30 @@ const TaskCard = ({
         </div>
       </div>
 
-      {/* Dropdown body: subtasks + controls */}
       {isOpen && (
-        <div className="px-3 pb-3">
-          {/* Subtasks list */}
+        <div className="row-divider px-4 pb-4 pt-3">
           {hasSubs ? (
-            <ul className="mt-1 space-y-1">
+            <ul className="space-y-1.5">
               {subs.map((s) => {
                 const isEditing = editingId === s.id;
                 const done = !!s.completed_at;
 
                 return (
-                  <li key={s.id} className="flex flex-wrap items-center gap-2">
-                    {/* checkbox */}
+                  <li
+                    key={s.id}
+                    className="flex flex-wrap items-center gap-2 py-1.5"
+                  >
                     <input
                       type="checkbox"
                       checked={done}
                       onChange={() => onToggleSubtaskDone(s)}
-                      className="shrink-0"
+                      className="shrink-0 accent-[var(--link)]"
                     />
 
-                    {/* title or editor */}
                     {isEditing ? (
                       <input
                         autoFocus
-                        className="flex-1 min-w-0 bg-transparent border rounded-lg p-1 px-2 text-sm"
+                        className="input-compact flex-1 min-w-0"
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
                         onKeyDown={(e) => {
@@ -257,7 +248,7 @@ const TaskCard = ({
                     ) : (
                       <span
                         className={`flex-1 min-w-0 break-words text-sm ${
-                          done ? 'opacity-70 line-through' : ''
+                          done ? 'text-white/40 line-through' : 'text-white/80'
                         }`}
                         title={s.title}
                       >
@@ -265,37 +256,35 @@ const TaskCard = ({
                       </span>
                     )}
 
-                    {/* controls (wrap on small) */}
                     {isEditing ? (
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1">
                         <button
                           type="button"
-                          className="px-2 py-1 border rounded-md hover:border-[var(--border)] text-xs"
+                          className="button-subtle"
                           onClick={() => saveEdit(s)}
                         >
                           save
                         </button>
                         <button
                           type="button"
-                          className="px-2 py-1 border rounded-md hover:border-[var(--border)] text-xs"
+                          className="button-ghost"
                           onClick={() => setEditingId(null)}
                         >
                           cancel
                         </button>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1">
                         <button
                           type="button"
-                          className="px-2 py-1 border rounded-md hover:border-[var(--border)] text-xs"
+                          className="button-ghost"
                           onClick={() => startEdit(s)}
                         >
                           edit
                         </button>
-
                         <button
                           type="button"
-                          className="px-2 py-1 border rounded-md hover:border-red-400 text-xs"
+                          className="button-danger"
                           onClick={() => onDeleteSubtask(s)}
                         >
                           delete
@@ -307,13 +296,12 @@ const TaskCard = ({
               })}
             </ul>
           ) : (
-            <p className="mt-1 text-sm opacity-70">no subtasks</p>
+            <p className="meta-text">no subtasks</p>
           )}
 
-          {/* Add subtask (active tasks only) */}
           {!isInactive && (
             <form
-              className="mt-3 flex flex-col sm:flex-row gap-2"
+              className="mt-4 flex flex-col sm:flex-row gap-2"
               onSubmit={async (e) => {
                 e.preventDefault();
                 const v = newSub.trim();
@@ -323,14 +311,14 @@ const TaskCard = ({
               }}
             >
               <input
-                className="flex-1 bg-transparent border rounded-lg p-2 text-sm"
+                className="input-minimal flex-1"
                 placeholder="add a subtask…"
                 value={newSub}
                 onChange={(e) => setNewSub(e.target.value)}
               />
               <button
                 type="submit"
-                className="px-3 py-2 border rounded-lg hover:border-[var(--border)] w-full sm:w-auto text-sm"
+                className="button-primary w-full sm:w-auto"
               >
                 add
               </button>
@@ -350,7 +338,6 @@ const Tasks = () => {
   const [subs, setSubs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
-
   const [tTitle, setTTitle] = useState('');
 
   const loadAll = async () => {
@@ -358,18 +345,19 @@ const Tasks = () => {
     setLoading(true);
     setErr(null);
 
-    const [{ data: t, error: te }, { data: s, error: se }] = await Promise.all([
-      supabase
-        .from('tasks')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: true }),
-      supabase
-        .from('subtasks')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: true }),
-    ]);
+    const [{ data: t, error: te }, { data: s, error: se }] =
+      await Promise.all([
+        supabase
+          .from('tasks')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: true }),
+        supabase
+          .from('subtasks')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: true }),
+      ]);
 
     if (te || se) setErr(te?.message || se?.message);
     setTasks(t || []);
@@ -403,8 +391,6 @@ const Tasks = () => {
         .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at)),
     [tasks]
   );
-
-  // --- Mutations ---
 
   const addTask = async (e) => {
     e.preventDefault();
@@ -449,7 +435,7 @@ const Tasks = () => {
       .eq('user_id', userId);
 
     if (error) return alert(error.message);
-    loadAll(); // trigger should update parent task if all subs complete
+    loadAll();
   };
 
   const updateSubtaskTitle = async (sub, title) => {
@@ -513,7 +499,6 @@ const Tasks = () => {
   };
 
   const reopenTask = async (task) => {
-    // Reopen task & all its subtasks
     const sids = (subsByTask.get(task.id) || []).map((s) => s.id);
 
     if (sids.length) {
@@ -539,94 +524,116 @@ const Tasks = () => {
   if (!session) return null;
 
   return (
-    <div className="max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">tasks</h1>
-      {loading && <p>loading…</p>}
-      {err && <p className="text-red-500">error: {err}</p>}
+    <main className="app-shell">
+      <header className="mb-12">
+        <h1 className="page-title">tasks</h1>
+      </header>
 
-      {/* Create Task */}
-      <section className="border rounded-3xl p-6">
-        <h2 className="text-lg font-semibold mb-2">add a task</h2>
-        <form onSubmit={addTask} className="flex flex-col sm:flex-row gap-3">
+      {loading && <p className="meta-text">loading…</p>}
+      {err && <p className="text-sm text-red-400">error: {err}</p>}
+
+      <section>
+        <div className="mb-4">
+          <p className="section-title">add a task</p>
+        </div>
+
+        <form
+          onSubmit={addTask}
+          className="flex flex-col sm:flex-row sm:items-center gap-2"
+        >
           <input
-            className="flex-1 bg-transparent border rounded-lg p-3"
+            className="input-minimal flex-1"
             placeholder="task title"
             value={tTitle}
             onChange={(e) => setTTitle(e.target.value)}
           />
           <button
             type="submit"
-            className="px-4 py-2 border rounded-lg hover:border-[var(--border)] w-full sm:w-auto"
+            className="button-primary w-full sm:w-auto"
           >
             add task
           </button>
         </form>
       </section>
 
-      {/* Active tasks - single column, dropdown per task */}
-      <section className="border rounded-3xl p-6 mt-6">
-        <h2 className="text-lg font-semibold mb-3">active tasks</h2>
-        {!activeTasks.length && (
-          <p className="opacity-80 text-sm">no active tasks.</p>
-        )}
-
-        <div className="space-y-3">
-          {activeTasks.map((t) => (
-            <TaskCard
-              key={t.id}
-              task={t}
-              subs={subsByTask.get(t.id) || []}
-              isInactive={false}
-              onAddSubtask={addSubtaskToTask}
-              onToggleSubtaskDone={toggleSubtaskDone}
-              onUpdateTaskTitle={updateTaskTitle}
-              onUpdateSubtaskTitle={updateSubtaskTitle}
-              onToggleTaskDoneNoSubs={toggleTaskDoneNoSubs}
-              onDeleteTask={deleteTask}
-              onDeleteSubtask={deleteSubtask}
-            />
-          ))}
+      <section className="mt-14">
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <p className="section-title">active tasks</p>
+          {!!activeTasks.length && (
+            <p className="meta-text-dim">{activeTasks.length} total</p>
+          )}
         </div>
+
+        <div className="divider-subtle" />
+
+        {!activeTasks.length ? (
+          <p className="meta-text pt-5">no active tasks.</p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {activeTasks.map((t) => (
+              <TaskCard
+                key={t.id}
+                task={t}
+                subs={subsByTask.get(t.id) || []}
+                isInactive={false}
+                onAddSubtask={addSubtaskToTask}
+                onToggleSubtaskDone={toggleSubtaskDone}
+                onUpdateTaskTitle={updateTaskTitle}
+                onUpdateSubtaskTitle={updateSubtaskTitle}
+                onToggleTaskDoneNoSubs={toggleTaskDoneNoSubs}
+                onDeleteTask={deleteTask}
+                onDeleteSubtask={deleteSubtask}
+              />
+            ))}
+          </div>
+        )}
       </section>
 
-      {/* Inactive tasks - single column, dropdown per task */}
-      <section className="border rounded-3xl p-6 mt-6">
-        <h2 className="text-lg font-semibold mb-3">inactive tasks</h2>
-        {!inactiveTasks.length && (
-          <p className="opacity-80 text-sm">no inactive tasks.</p>
-        )}
-
-        <div className="space-y-3">
-          {inactiveTasks.map((t) => {
-            const finished = t.completed_at ? new Date(t.completed_at) : null;
-
-            return (
-              <div key={t.id}>
-                {finished && (
-                  <div className="mb-1 text-xs opacity-70">
-                    completed {finished.toLocaleDateString()}
-                  </div>
-                )}
-
-                <TaskCard
-                  task={t}
-                  subs={subsByTask.get(t.id) || []}
-                  isInactive={true}
-                  onAddSubtask={() => {}}
-                  onToggleSubtaskDone={toggleSubtaskDone}
-                  onUpdateTaskTitle={updateTaskTitle}
-                  onUpdateSubtaskTitle={updateSubtaskTitle}
-                  onToggleTaskDoneNoSubs={toggleTaskDoneNoSubs}
-                  onReopenTask={reopenTask}
-                  onDeleteTask={deleteTask}
-                  onDeleteSubtask={deleteSubtask}
-                />
-              </div>
-            );
-          })}
+      <section className="mt-16">
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <p className="section-title">inactive tasks</p>
+          {!!inactiveTasks.length && (
+            <p className="meta-text-dim">{inactiveTasks.length} archived</p>
+          )}
         </div>
+
+        <div className="divider-subtle" />
+
+        {!inactiveTasks.length ? (
+          <p className="meta-text pt-5">no inactive tasks.</p>
+        ) : (
+          <div className="mt-4 space-y-4">
+            {inactiveTasks.map((t) => {
+              const finished = t.completed_at ? new Date(t.completed_at) : null;
+
+              return (
+                <div key={t.id}>
+                  {finished && (
+                    <div className="mb-2 px-1 meta-text-dim">
+                      completed {finished.toLocaleDateString()}
+                    </div>
+                  )}
+
+                  <TaskCard
+                    task={t}
+                    subs={subsByTask.get(t.id) || []}
+                    isInactive={true}
+                    onAddSubtask={() => {}}
+                    onToggleSubtaskDone={toggleSubtaskDone}
+                    onUpdateTaskTitle={updateTaskTitle}
+                    onUpdateSubtaskTitle={updateSubtaskTitle}
+                    onToggleTaskDoneNoSubs={toggleTaskDoneNoSubs}
+                    onReopenTask={reopenTask}
+                    onDeleteTask={deleteTask}
+                    onDeleteSubtask={deleteSubtask}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
-    </div>
+    </main>
   );
 };
 

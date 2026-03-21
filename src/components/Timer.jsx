@@ -1,5 +1,3 @@
-// Timer.jsx
-
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { UserAuth } from '../context/AuthContext';
@@ -9,47 +7,40 @@ const Timer = ({ onGuardChange }) => {
   const { session } = UserAuth();
   const userId = session?.user?.id;
 
-  // Timer state
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [startTime, setStartTime] = useState(null);   // last resume/start timestamp (ms)
-  const [firstStart, setFirstStart] = useState(null); // first start of this session (Date)
-  const [baseElapsed, setBaseElapsed] = useState(0);  // ms accumulated before current run
-  const [elapsed, setElapsed] = useState(0);          // live ms (baseElapsed + now - startTime while running)
+  const [startTime, setStartTime] = useState(null);
+  const [firstStart, setFirstStart] = useState(null);
+  const [baseElapsed, setBaseElapsed] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
 
-  // Review note
   const [needsNote, setNeedsNote] = useState(false);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Data for task selection
-  const [tasks, setTasks] = useState([]);   // only ACTIVE tasks (completed_at IS NULL)
-  const [subs, setSubs] = useState([]);     // all subtasks for those tasks (both active & completed)
-  const [preCompletedSubs, setPreCompletedSubs] = useState(new Set()); // subtasks with completed_at != null
+  const [tasks, setTasks] = useState([]);
+  const [subs, setSubs] = useState([]);
+  const [preCompletedSubs, setPreCompletedSubs] = useState(new Set());
 
-  // Selection for THIS session
-  const [selectedSubs, setSelectedSubs] = useState(new Set());             // subtask IDs chosen now
-  const [selectedNoSubTasks, setSelectedNoSubTasks] = useState(new Set()); // active tasks with NO subtasks chosen now
+  const [selectedSubs, setSelectedSubs] = useState(new Set());
+  const [selectedNoSubTasks, setSelectedNoSubTasks] = useState(new Set());
 
-  // Saved popup
   const [showSaved, setShowSaved] = useState(false);
-  const [savedInfo, setSavedInfo] = useState(null); // { started, ended, durationSeconds, note, groups: [{taskTitle, subtasks:[]}] }
+  const [savedInfo, setSavedInfo] = useState(null);
 
   const intervalRef = useRef(null);
-  const taskRefs = useRef({}); // to set checkbox.indeterminate
+  const taskRefs = useRef({});
 
-  // ========= NEW: notify dashboard to guard navigation when timing =========
   useEffect(() => {
     if (typeof onGuardChange === 'function') {
       onGuardChange(isRunning || isPaused);
     }
+
     return () => {
       if (typeof onGuardChange === 'function') onGuardChange(false);
     };
   }, [isRunning, isPaused, onGuardChange]);
-  // ========================================================================
 
-  // Load ONLY active tasks, and for those tasks load ALL of their subtasks (active + completed)
   const loadTasks = async () => {
     if (!userId) return;
 
@@ -77,7 +68,7 @@ const Timer = ({ onGuardChange }) => {
       return;
     }
 
-    const ids = activeTasks.map(x => x.id);
+    const ids = activeTasks.map((x) => x.id);
     const { data: s, error: se } = await supabase
       .from('subtasks')
       .select('*')
@@ -93,53 +84,64 @@ const Timer = ({ onGuardChange }) => {
     }
 
     setSubs(s || []);
-    setPreCompletedSubs(new Set((s || []).filter(st => !!st.completed_at).map(st => st.id)));
+    setPreCompletedSubs(
+      new Set((s || []).filter((st) => !!st.completed_at).map((st) => st.id))
+    );
   };
 
-  useEffect(() => { loadTasks(); /* eslint-disable-next-line */ }, [userId]);
+  useEffect(() => {
+    loadTasks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
-  // Tick while running
   useEffect(() => {
     if (isRunning && startTime != null) {
       intervalRef.current = setInterval(() => {
         setElapsed(baseElapsed + (Date.now() - startTime));
       }, 250);
     }
+
     return () => clearInterval(intervalRef.current);
   }, [isRunning, startTime, baseElapsed]);
 
   const subsByTask = useMemo(() => {
     const m = new Map();
-    subs.forEach(s => {
+    subs.forEach((s) => {
       if (!m.has(s.task_id)) m.set(s.task_id, []);
       m.get(s.task_id).push(s);
     });
-    return m; // Map<task_id, Subtask[]>
+    return m;
   }, [subs]);
 
-  const allSubIdsForTask = (taskId) => (subsByTask.get(taskId) || []).map(s => s.id);
-  const isSubCheckedDisplay = (id) => preCompletedSubs.has(id) || selectedSubs.has(id);
+  const allSubIdsForTask = (taskId) =>
+    (subsByTask.get(taskId) || []).map((s) => s.id);
+
+  const isSubCheckedDisplay = (id) =>
+    preCompletedSubs.has(id) || selectedSubs.has(id);
 
   const areAllSubsCheckedDisplay = (taskId) => {
     const ids = allSubIdsForTask(taskId);
-    return ids.length > 0 && ids.every(id => isSubCheckedDisplay(id));
-  };
-  const areSomeSubsCheckedDisplay = (taskId) => {
-    const ids = allSubIdsForTask(taskId);
-    return ids.some(id => isSubCheckedDisplay(id)) && !areAllSubsCheckedDisplay(taskId);
+    return ids.length > 0 && ids.every((id) => isSubCheckedDisplay(id));
   };
 
-  // Keep parent checkbox "indeterminate" when some (but not all) subtasks are checked (including pre-completed)
+  const areSomeSubsCheckedDisplay = (taskId) => {
+    const ids = allSubIdsForTask(taskId);
+    return (
+      ids.some((id) => isSubCheckedDisplay(id)) &&
+      !areAllSubsCheckedDisplay(taskId)
+    );
+  };
+
   useEffect(() => {
-    tasks.forEach(t => {
+    tasks.forEach((t) => {
       const ref = taskRefs.current[t.id];
       if (!ref) return;
       const subCount = (subsByTask.get(t.id) || []).length;
-      ref.indeterminate = subCount > 0 ? areSomeSubsCheckedDisplay(t.id) : false;
+      ref.indeterminate =
+        subCount > 0 ? areSomeSubsCheckedDisplay(t.id) : false;
     });
   }, [tasks, subsByTask, selectedSubs, preCompletedSubs]);
 
-  // --- Controls ---
   const startNew = () => {
     setFirstStart(new Date());
     setStartTime(Date.now());
@@ -170,63 +172,63 @@ const Timer = ({ onGuardChange }) => {
     clearInterval(intervalRef.current);
     setIsRunning(false);
     setIsPaused(true);
-    setBaseElapsed(elapsed); // lock in what we have so far
+    setBaseElapsed(elapsed);
   };
 
   const handleStop = () => {
     clearInterval(intervalRef.current);
     setIsRunning(false);
     setIsPaused(false);
-    setNeedsNote(true); // show review UI
+    setNeedsNote(true);
   };
 
-  // Clicking a TASK:
-  //  • If it HAS subtasks → (de)select ALL of its NOT-YET-completed subtasks.
-  //    (Already-completed subtasks remain checked & disabled.)
-  //  • If it has NO subtasks → toggle parent-only selection set.
   const toggleTask = (taskId) => {
     const subIds = allSubIdsForTask(taskId);
+
     if (subIds.length > 0) {
-      const mutableIds = subIds.filter(id => !preCompletedSubs.has(id));
-      const allMutableSelected = mutableIds.length > 0 && mutableIds.every(id => selectedSubs.has(id));
-      setSelectedSubs(prev => {
+      const mutableIds = subIds.filter((id) => !preCompletedSubs.has(id));
+      const allMutableSelected =
+        mutableIds.length > 0 && mutableIds.every((id) => selectedSubs.has(id));
+
+      setSelectedSubs((prev) => {
         const n = new Set(prev);
         if (allMutableSelected) {
-          mutableIds.forEach(id => n.delete(id));
+          mutableIds.forEach((id) => n.delete(id));
         } else {
-          mutableIds.forEach(id => n.add(id));
+          mutableIds.forEach((id) => n.add(id));
         }
         return n;
       });
-      // Ensure parent-only set is NOT used for tasks with subtasks
-      setSelectedNoSubTasks(prev => {
+
+      setSelectedNoSubTasks((prev) => {
         const n = new Set(prev);
         n.delete(taskId);
         return n;
       });
     } else {
-      // No subtasks: toggle parent-only selection
-      setSelectedNoSubTasks(prev => {
+      setSelectedNoSubTasks((prev) => {
         const n = new Set(prev);
-        if (n.has(taskId)) n.delete(taskId); else n.add(taskId);
+        if (n.has(taskId)) n.delete(taskId);
+        else n.add(taskId);
         return n;
       });
     }
   };
 
-  // Clicking a SUBTASK toggles just that subtask (unless it's already completed)
   const toggleSub = (subId, isPreCompleted) => {
-    if (isPreCompleted) return; // disabled in UI, but guard anyway
-    setSelectedSubs(prev => {
+    if (isPreCompleted) return;
+
+    setSelectedSubs((prev) => {
       const n = new Set(prev);
-      if (n.has(subId)) n.delete(subId); else n.add(subId);
+      if (n.has(subId)) n.delete(subId);
+      else n.add(subId);
       return n;
     });
   };
 
   const buildSummaryGroups = () => {
-    const taskById = new Map(tasks.map(t => [t.id, t]));
-    const subById = new Map(subs.map(s => [s.id, s]));
+    const taskById = new Map(tasks.map((t) => [t.id, t]));
+    const subById = new Map(subs.map((s) => [s.id, s]));
     const groupsMap = new Map();
 
     selectedSubs.forEach((sid) => {
@@ -259,17 +261,15 @@ const Timer = ({ onGuardChange }) => {
     return Array.from(groupsMap.values());
   };
 
-
   const handleSave = async () => {
     if (!userId) return;
 
     const endedAt = new Date();
     const startedAt = firstStart || new Date(endedAt.getTime() - elapsed);
-    const durationSeconds = Math.round(elapsed / 1000); // use accumulated time
+    const durationSeconds = Math.round(elapsed / 1000);
 
     setSaving(true);
 
-    // 1) Save the journal entry
     const { data: entry, error: e1 } = await supabase
       .from('journal_entries')
       .insert({
@@ -287,16 +287,15 @@ const Timer = ({ onGuardChange }) => {
       return alert(e1.message || 'Failed to save entry');
     }
 
-    // 2) Link tasks/subtasks to the entry (only the things completed THIS session)
-    const subById = new Map(subs.map(s => [s.id, s]));
+    const subById = new Map(subs.map((s) => [s.id, s]));
     const rows = [];
 
-    selectedSubs.forEach(sid => {
+    selectedSubs.forEach((sid) => {
       const s = subById.get(sid);
       if (s) rows.push({ entry_id: entry.id, task_id: s.task_id, subtask_id: s.id });
     });
 
-    selectedNoSubTasks.forEach(tid => {
+    selectedNoSubTasks.forEach((tid) => {
       rows.push({ entry_id: entry.id, task_id: tid, subtask_id: null });
     });
 
@@ -308,7 +307,6 @@ const Timer = ({ onGuardChange }) => {
       }
     }
 
-    // 3) Mark completion timestamps for items finished THIS session
     const endedISO = endedAt.toISOString();
 
     if (selectedSubs.size) {
@@ -317,7 +315,6 @@ const Timer = ({ onGuardChange }) => {
         .update({ completed_at: endedISO })
         .in('id', Array.from(selectedSubs))
         .eq('user_id', userId);
-      // trigger sync_task_completion() may close parent tasks as needed
     }
 
     if (selectedNoSubTasks.size) {
@@ -328,7 +325,6 @@ const Timer = ({ onGuardChange }) => {
         .eq('user_id', userId);
     }
 
-    // 4) Build and show in-app summary popup BEFORE resetting state
     const summary = {
       started: startedAt,
       ended: endedAt,
@@ -336,13 +332,12 @@ const Timer = ({ onGuardChange }) => {
       note: note.trim(),
       groups: buildSummaryGroups(),
     };
+
     setSavedInfo(summary);
     setShowSaved(true);
 
-    // 5) Refresh active tasks/subtasks so completed tasks disappear and newly-completed subtasks render struck-through
     await loadTasks();
 
-    // 6) Reset local state for a fresh session
     setSaving(false);
     setNeedsNote(false);
     setNote('');
@@ -365,173 +360,241 @@ const Timer = ({ onGuardChange }) => {
 
   return (
     <>
-      <div className="mt-6 border rounded-2xl p-4 max-w-xl bg-[var(--bg)] text-[var(--fg)]">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="text-4xl font-bold tracking-wide">{timeStr}</div>
+      <div className="surface-row overflow-hidden">
+        <div className="px-5 py-5 sm:px-6 sm:py-6">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="section-title">session</p>
+              <div className="mt-3 text-5xl font-semibold tracking-tight text-[var(--fg)] sm:text-6xl">
+                {timeStr}
+              </div>
+              <p className="meta-text mt-3">
+                {needsNote
+                  ? 'review and save this session'
+                  : isRunning
+                  ? 'running'
+                  : isPaused
+                  ? 'paused'
+                  : 'ready'}
+              </p>
+            </div>
 
-          {/* Buttons: wrap on small screens */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {!isRunning && !isPaused && !needsNote && (
-              <button
-                onClick={handleStart}
-                className="px-4 py-2 border rounded-lg hover:border-[var(--border)] w-full sm:w-auto"
-              >
-                Start
-              </button>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {!isRunning && !isPaused && !needsNote && (
+                <button type="button" onClick={handleStart} className="button-primary">
+                  start
+                </button>
+              )}
 
-            {isRunning && !needsNote && (
-              <>
-                <button
-                  onClick={handlePause}
-                  className="px-4 py-2 border rounded-lg hover:border-[var(--border)] w-full sm:w-auto"
-                >
-                  Pause
-                </button>
-                <button
-                  onClick={handleStop}
-                  className="px-4 py-2 border rounded-lg hover:border-[var(--border)] w-full sm:w-auto"
-                >
-                  Stop
-                </button>
-              </>
-            )}
+              {isRunning && !needsNote && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handlePause}
+                    className="button-subtle"
+                  >
+                    pause
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleStop}
+                    className="button-primary"
+                  >
+                    stop
+                  </button>
+                </>
+              )}
 
-            {isPaused && !needsNote && (
-              <>
-                <button
-                  onClick={handleStart} // resume
-                  className="px-4 py-2 border rounded-lg hover:border-[var(--border)] w-full sm:w-auto"
-                >
-                  Resume
-                </button>
-                <button
-                  onClick={handleStop}
-                  className="px-4 py-2 border rounded-lg hover:border-[var(--border)] w-full sm:w-auto"
-                >
-                  Stop
-                </button>
-              </>
-            )}
+              {isPaused && !needsNote && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleStart}
+                    className="button-primary"
+                  >
+                    resume
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleStop}
+                    className="button-subtle"
+                  >
+                    stop
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
         {needsNote && (
-          <div className="mt-4">
-            <label htmlFor="note" className="block mb-2 text-sm opacity-80">Brief review</label>
-            <textarea
-              id="note"
-              rows={3}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              className="w-full p-3 border rounded-lg bg-transparent"
-              placeholder="What did you accomplish?"
-            />
+          <div className="row-divider px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+              <div>
+                <p className="section-title">brief review</p>
+                <textarea
+                  id="note"
+                  rows={4}
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  className="input-minimal mt-3 min-h-[120px] resize-y"
+                  placeholder="what did you accomplish?"
+                />
+              </div>
 
-            {/* Completed tasks */}
-            <div className="mt-4">
-              <label className="text-sm opacity-80">Mark tasks/subtasks completed</label>
-              {!tasks.length && (
-                <p className="opacity-70 text-sm mt-2">No active tasks right now.</p>
-              )}
+              <div>
+                <p className="section-title">mark completed</p>
 
-              <div className="mt-2 space-y-3">
-                {tasks.map(t => {
-                  const list = subsByTask.get(t.id) || [];
-                  const hasSubs = list.length > 0;
-                  const checked = hasSubs
-                    ? areAllSubsCheckedDisplay(t.id)
-                    : selectedNoSubTasks.has(t.id);
+                {!tasks.length && (
+                  <p className="meta-text mt-3">no active tasks right now.</p>
+                )}
 
-                  return (
-                    <div key={t.id} className="border rounded-lg p-3">
-                      <label className="flex items-center gap-2">
-                        <input
-                          ref={(el) => (taskRefs.current[t.id] = el)}
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleTask(t.id)}
-                        />
-                        <span className="font-semibold">
-                          {t.title}
-                          {hasSubs && areSomeSubsCheckedDisplay(t.id) && (
-                            <span className="ml-2 text-xs opacity-70">(some selected)</span>
-                          )}
-                        </span>
-                      </label>
+                {!!tasks.length && (
+                  <div className="mt-3 max-h-[24rem] space-y-3 overflow-auto pr-1">
+                    {tasks.map((t) => {
+                      const list = subsByTask.get(t.id) || [];
+                      const hasSubs = list.length > 0;
+                      const checked = hasSubs
+                        ? areAllSubsCheckedDisplay(t.id)
+                        : selectedNoSubTasks.has(t.id);
 
-                      {hasSubs && (
-                        <div className="mt-2 ml-6 space-y-1">
-                          {list.map(s => {
-                            const pre = preCompletedSubs.has(s.id);
-                            const isChecked = pre || selectedSubs.has(s.id);
-                            return (
-                              <label key={s.id} className="flex items-center gap-2">
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  disabled={pre}
-                                  onChange={() => toggleSub(s.id, pre)}
-                                />
-                                <span className={pre ? 'opacity-70 line-through' : 'opacity-90'}>
-                                  {s.title}
+                      return (
+                        <div key={t.id} className="surface-row p-3">
+                          <label className="flex items-center gap-3">
+                            <input
+                              ref={(el) => (taskRefs.current[t.id] = el)}
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleTask(t.id)}
+                              style={{ accentColor: 'var(--link)' }}
+                              className="shrink-0"
+                            />
+                            <span className="task-title">
+                              {t.title}
+                              {hasSubs && areSomeSubsCheckedDisplay(t.id) && (
+                                <span className="ml-2 text-[11px] text-[var(--muted)]">
+                                  some selected
                                 </span>
-                              </label>
-                            );
-                          })}
+                              )}
+                            </span>
+                          </label>
+
+                          {hasSubs && (
+                            <div className="mt-3 ml-7 space-y-2">
+                              {list.map((s) => {
+                                const pre = preCompletedSubs.has(s.id);
+                                const isChecked = pre || selectedSubs.has(s.id);
+
+                                return (
+                                  <label
+                                    key={s.id}
+                                    className="flex items-center gap-3 text-sm"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      disabled={pre}
+                                      onChange={() => toggleSub(s.id, pre)}
+                                      style={{ accentColor: 'var(--link)' }}
+                                      className="shrink-0"
+                                    />
+                                    <span
+                                      className={
+                                        pre
+                                          ? 'text-white/40 line-through'
+                                          : 'text-white/80'
+                                      }
+                                    >
+                                      {s.title}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="mt-4 flex items-center gap-2 flex-wrap">
+            <div className="mt-6 flex flex-wrap items-center gap-2">
               <button
+                type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="px-4 py-2 border rounded-lg hover:border-[var(--border)] disabled:opacity-60 w-full sm:w-auto"
+                className="button-primary disabled:opacity-60"
               >
-                {saving ? 'Saving…' : 'Save Entry'}
+                {saving ? 'saving…' : 'save entry'}
               </button>
               <button
+                type="button"
                 onClick={handleCancel}
-                className="px-4 py-2 border rounded-lg hover:border-[var(--border)] w-full sm:w-auto"
+                className="button-ghost"
               >
-                Cancel
+                cancel
               </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Saved popup */}
       {showSaved && savedInfo && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
-          <div className="w-[min(560px,92vw)] border rounded-2xl p-6 bg-[var(--bg)] text-[var(--fg)]">
-            <h3 className="text-xl font-semibold">Entry saved</h3>
-            <p className="opacity-80 text-sm mt-1">
-              {savedInfo.started.toLocaleString()} → {savedInfo.ended.toLocaleTimeString()} ·{' '}
-              {formatDuration(savedInfo.durationSeconds)}
-            </p>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 px-4">
+          <div
+            className="w-full max-w-2xl rounded-2xl border p-6"
+            style={{
+              background: 'var(--surface-1)',
+              borderColor: 'var(--border)',
+              boxShadow: '0 18px 60px rgba(0, 0, 0, 0.45)',
+            }}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="section-title">entry saved</p>
+                <h3 className="mt-3 text-2xl font-semibold text-[var(--fg)]">
+                  session recorded
+                </h3>
+                <p className="meta-text mt-2">
+                  {savedInfo.started.toLocaleString()} →{' '}
+                  {savedInfo.ended.toLocaleTimeString()} ·{' '}
+                  {formatDuration(savedInfo.durationSeconds)}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSaved(false);
+                  setSavedInfo(null);
+                }}
+                className="button-ghost"
+              >
+                close
+              </button>
+            </div>
 
             {savedInfo.note && (
-              <div className="mt-3">
-                <div className="text-sm font-semibold opacity-90 mb-1">Brief review</div>
-                <p className="whitespace-pre-wrap">{savedInfo.note}</p>
+              <div className="mt-5">
+                <p className="section-title">brief review</p>
+                <p className="mt-3 whitespace-pre-wrap text-sm text-white/85">
+                  {savedInfo.note}
+                </p>
               </div>
             )}
 
             {!!savedInfo.groups.length && (
-              <div className="mt-3">
-                <div className="text-sm font-semibold opacity-90 mb-1">Completed</div>
-                <ul className="space-y-2">
+              <div className="mt-5">
+                <p className="section-title">completed</p>
+                <ul className="mt-3 space-y-3">
                   {savedInfo.groups.map((g, idx) => (
-                    <li key={idx} className="border rounded-lg p-3">
-                      <div className="font-semibold">{g.taskTitle}</div>
+                    <li key={idx} className="surface-row p-3">
+                      <div className="task-title">{g.taskTitle}</div>
+
                       {g.subtasks?.length > 0 && (
-                        <ul className="list-disc list-inside opacity-90 mt-1">
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-white/80">
                           {g.subtasks.map((st, i) => (
                             <li key={i}>{st}</li>
                           ))}
@@ -542,15 +605,6 @@ const Timer = ({ onGuardChange }) => {
                 </ul>
               </div>
             )}
-
-            <div className="mt-5 flex justify-end">
-              <button
-                onClick={() => { setShowSaved(false); setSavedInfo(null); }}
-                className="px-4 py-2 border rounded-lg hover:border-[var(--border)]"
-              >
-                Close
-              </button>
-            </div>
           </div>
         </div>
       )}
