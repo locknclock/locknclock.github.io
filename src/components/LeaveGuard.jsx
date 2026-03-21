@@ -1,3 +1,5 @@
+// LeaveGuard.jsx
+
 import { useEffect } from 'react';
 import * as RR from 'react-router-dom';
 

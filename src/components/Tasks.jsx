@@ -5,7 +5,8 @@ import { UserAuth } from '../context/AuthContext';
 /** Task card:
  *  - single-column card
  *  - clickable header toggles dropdown with subtasks
- *  - add/edit subtasks (active tasks)
+ *  - edit/delete task
+ *  - add/edit/delete subtasks
  *  - checkbox to complete subtasks
  *  - mark-done for tasks with no subtasks
  *  - reopen button for inactive tasks
@@ -16,17 +17,47 @@ const TaskCard = ({
   isInactive = false,
   onAddSubtask,
   onToggleSubtaskDone,
+  onUpdateTaskTitle,
   onUpdateSubtaskTitle,
   onToggleTaskDoneNoSubs,
   onReopenTask,
+  onDeleteTask,
+  onDeleteSubtask,
 }) => {
   const [newSub, setNewSub] = useState('');
+  const [editingTask, setEditingTask] = useState(false);
+  const [taskEditValue, setTaskEditValue] = useState(task.title);
   const [editingId, setEditingId] = useState(null);
   const [editValue, setEditValue] = useState('');
   const [isOpen, setIsOpen] = useState(false); // dropdown collapsed by default
 
+  useEffect(() => {
+    if (!editingTask) setTaskEditValue(task.title);
+  }, [task.title, editingTask]);
+
   const hasSubs = subs.length > 0;
   const incompleteCount = subs.filter((s) => !s.completed_at).length;
+
+  const startTaskEdit = () => {
+    setEditingTask(true);
+    setTaskEditValue(task.title);
+  };
+
+  const saveTaskEdit = async () => {
+    const v = taskEditValue.trim();
+    if (!v || v === task.title) {
+      setEditingTask(false);
+      setTaskEditValue(task.title);
+      return;
+    }
+    await onUpdateTaskTitle(task, v);
+    setEditingTask(false);
+  };
+
+  const cancelTaskEdit = () => {
+    setEditingTask(false);
+    setTaskEditValue(task.title);
+  };
 
   const startEdit = (sub) => {
     setEditingId(sub.id);
@@ -44,6 +75,8 @@ const TaskCard = ({
   };
 
   const handleHeaderKeyDown = (e) => {
+    if (editingTask) return;
+
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       setIsOpen((prev) => !prev);
@@ -55,13 +88,15 @@ const TaskCard = ({
       {/* Header row: behaves like the dashboard's active-tasks accordion */}
       <div
         role="button"
-        tabIndex={0}
-        onClick={() => setIsOpen((prev) => !prev)}
+        tabIndex={editingTask ? -1 : 0}
+        onClick={() => {
+          if (!editingTask) setIsOpen((prev) => !prev);
+        }}
         onKeyDown={handleHeaderKeyDown}
         className="w-full p-3 flex items-center justify-between gap-3 text-left cursor-pointer"
         aria-expanded={isOpen}
       >
-        <div className="min-w-0 flex items-center gap-2">
+        <div className="min-w-0 flex items-center gap-2 flex-1">
           {/* caret */}
           <svg
             className={`shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`}
@@ -75,48 +110,114 @@ const TaskCard = ({
             <path d="M7 6l6 4-6 4V6z" fill="currentColor" />
           </svg>
 
-          <span className="font-semibold truncate">{task.title}</span>
+          {editingTask ? (
+            <input
+              autoFocus
+              className="flex-1 min-w-0 bg-transparent border rounded-lg p-2 text-sm font-semibold"
+              value={taskEditValue}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => setTaskEditValue(e.target.value)}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') saveTaskEdit();
+                if (e.key === 'Escape') cancelTaskEdit();
+              }}
+            />
+          ) : (
+            <span className="font-semibold truncate" title={task.title}>
+              {task.title}
+            </span>
+          )}
         </div>
 
-        <div className="flex items-center gap-3">
-          {hasSubs && (
+        <div className="flex items-center gap-3 flex-wrap justify-end">
+          {!editingTask && hasSubs && (
             <span className="text-xs opacity-70 whitespace-nowrap">
               {incompleteCount > 0
                 ? `${incompleteCount} subtask${incompleteCount > 1 ? 's' : ''} left`
                 : 'all subtasks complete'}
             </span>
           )}
-          {!hasSubs && !isInactive && (
+
+          {!editingTask && !hasSubs && !isInactive && (
             <span className="text-xs opacity-70 whitespace-nowrap">
               no subtasks
             </span>
           )}
 
-          {/* Right-side actions (clicks should NOT toggle dropdown) */}
-          {!hasSubs && !isInactive && (
-            <button
-              type="button"
-              className="px-3 py-1.5 border rounded-lg hover:border-[var(--border)] text-xs"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleTaskDoneNoSubs(task);
-              }}
-            >
-              {task.completed_at ? 'Reopen' : 'mark done'}
-            </button>
-          )}
+          {editingTask ? (
+            <>
+              <button
+                type="button"
+                className="px-3 py-1.5 border rounded-lg hover:border-[var(--border)] text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  saveTaskEdit();
+                }}
+              >
+                save
+              </button>
+              <button
+                type="button"
+                className="px-3 py-1.5 border rounded-lg hover:border-[var(--border)] text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  cancelTaskEdit();
+                }}
+              >
+                cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="px-3 py-1.5 border rounded-lg hover:border-[var(--border)] text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  startTaskEdit();
+                }}
+              >
+                edit
+              </button>
 
-          {isInactive && (
-            <button
-              type="button"
-              className="px-3 py-1.5 border rounded-lg hover:border-[var(--border)] text-xs"
-              onClick={(e) => {
-                e.stopPropagation();
-                onReopenTask(task);
-              }}
-            >
-              reopen
-            </button>
+              {!hasSubs && !isInactive && (
+                <button
+                  type="button"
+                  className="px-3 py-1.5 border rounded-lg hover:border-[var(--border)] text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleTaskDoneNoSubs(task);
+                  }}
+                >
+                  {task.completed_at ? 'Reopen' : 'mark done'}
+                </button>
+              )}
+
+              {isInactive && (
+                <button
+                  type="button"
+                  className="px-3 py-1.5 border rounded-lg hover:border-[var(--border)] text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReopenTask(task);
+                  }}
+                >
+                  reopen
+                </button>
+              )}
+
+              <button
+                type="button"
+                className="px-3 py-1.5 border rounded-lg hover:border-red-400 text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteTask(task);
+                }}
+              >
+                delete
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -130,6 +231,7 @@ const TaskCard = ({
               {subs.map((s) => {
                 const isEditing = editingId === s.id;
                 const done = !!s.completed_at;
+
                 return (
                   <li key={s.id} className="flex flex-wrap items-center gap-2">
                     {/* checkbox */}
@@ -167,12 +269,14 @@ const TaskCard = ({
                     {isEditing ? (
                       <div className="flex items-center gap-2 flex-wrap">
                         <button
+                          type="button"
                           className="px-2 py-1 border rounded-md hover:border-[var(--border)] text-xs"
                           onClick={() => saveEdit(s)}
                         >
                           save
                         </button>
                         <button
+                          type="button"
                           className="px-2 py-1 border rounded-md hover:border-[var(--border)] text-xs"
                           onClick={() => setEditingId(null)}
                         >
@@ -182,10 +286,19 @@ const TaskCard = ({
                     ) : (
                       <div className="flex items-center gap-2 flex-wrap">
                         <button
+                          type="button"
                           className="px-2 py-1 border rounded-md hover:border-[var(--border)] text-xs"
                           onClick={() => startEdit(s)}
                         >
                           edit
+                        </button>
+
+                        <button
+                          type="button"
+                          className="px-2 py-1 border rounded-md hover:border-red-400 text-xs"
+                          onClick={() => onDeleteSubtask(s)}
+                        >
+                          delete
                         </button>
                       </div>
                     )}
@@ -215,7 +328,10 @@ const TaskCard = ({
                 value={newSub}
                 onChange={(e) => setNewSub(e.target.value)}
               />
-              <button className="px-3 py-2 border rounded-lg hover:border-[var(--border)] w-full sm:w-auto text-sm">
+              <button
+                type="submit"
+                className="px-3 py-2 border rounded-lg hover:border-[var(--border)] w-full sm:w-auto text-sm"
+              >
                 add
               </button>
             </form>
@@ -241,6 +357,7 @@ const Tasks = () => {
     if (!userId) return;
     setLoading(true);
     setErr(null);
+
     const [{ data: t, error: te }, { data: s, error: se }] = await Promise.all([
       supabase
         .from('tasks')
@@ -253,6 +370,7 @@ const Tasks = () => {
         .eq('user_id', userId)
         .order('created_at', { ascending: true }),
     ]);
+
     if (te || se) setErr(te?.message || se?.message);
     setTasks(t || []);
     setSubs(s || []);
@@ -291,11 +409,24 @@ const Tasks = () => {
   const addTask = async (e) => {
     e.preventDefault();
     if (!tTitle.trim()) return;
+
     const { error } = await supabase
       .from('tasks')
       .insert({ user_id: userId, title: tTitle.trim() });
+
     if (error) return alert(error.message);
     setTTitle('');
+    loadAll();
+  };
+
+  const updateTaskTitle = async (task, title) => {
+    const { error } = await supabase
+      .from('tasks')
+      .update({ title })
+      .eq('id', task.id)
+      .eq('user_id', userId);
+
+    if (error) return alert(error.message);
     loadAll();
   };
 
@@ -303,17 +434,20 @@ const Tasks = () => {
     const { error } = await supabase
       .from('subtasks')
       .insert({ user_id: userId, task_id: task.id, title });
+
     if (error) return alert(error.message);
     loadAll();
   };
 
   const toggleSubtaskDone = async (sub) => {
     const next = sub.completed_at ? null : new Date().toISOString();
+
     const { error } = await supabase
       .from('subtasks')
       .update({ completed_at: next })
       .eq('id', sub.id)
       .eq('user_id', userId);
+
     if (error) return alert(error.message);
     loadAll(); // trigger should update parent task if all subs complete
   };
@@ -324,6 +458,40 @@ const Tasks = () => {
       .update({ title })
       .eq('id', sub.id)
       .eq('user_id', userId);
+
+    if (error) return alert(error.message);
+    loadAll();
+  };
+
+  const deleteTask = async (task) => {
+    const subCount = (subsByTask.get(task.id) || []).length;
+    const ok = window.confirm(
+      `Delete task "${task.title}"?${
+        subCount ? ' This will also delete all of its subtasks.' : ''
+      }`
+    );
+    if (!ok) return;
+
+    const { error } = await supabase
+      .from('tasks')
+      .delete()
+      .eq('id', task.id)
+      .eq('user_id', userId);
+
+    if (error) return alert(error.message);
+    loadAll();
+  };
+
+  const deleteSubtask = async (sub) => {
+    const ok = window.confirm(`Delete subtask "${sub.title}"?`);
+    if (!ok) return;
+
+    const { error } = await supabase
+      .from('subtasks')
+      .delete()
+      .eq('id', sub.id)
+      .eq('user_id', userId);
+
     if (error) return alert(error.message);
     loadAll();
   };
@@ -331,12 +499,15 @@ const Tasks = () => {
   const toggleTaskDoneNoSubs = async (task) => {
     const hasSubs = (subsByTask.get(task.id) || []).length > 0;
     if (hasSubs) return;
+
     const next = task.completed_at ? null : new Date().toISOString();
+
     const { error } = await supabase
       .from('tasks')
       .update({ completed_at: next })
       .eq('id', task.id)
       .eq('user_id', userId);
+
     if (error) return alert(error.message);
     loadAll();
   };
@@ -344,19 +515,23 @@ const Tasks = () => {
   const reopenTask = async (task) => {
     // Reopen task & all its subtasks
     const sids = (subsByTask.get(task.id) || []).map((s) => s.id);
+
     if (sids.length) {
       const { error: se } = await supabase
         .from('subtasks')
         .update({ completed_at: null })
         .in('id', sids)
         .eq('user_id', userId);
+
       if (se) return alert(se.message);
     }
+
     const { error: te } = await supabase
       .from('tasks')
       .update({ completed_at: null })
       .eq('id', task.id)
       .eq('user_id', userId);
+
     if (te) return alert(te.message);
     loadAll();
   };
@@ -379,7 +554,10 @@ const Tasks = () => {
             value={tTitle}
             onChange={(e) => setTTitle(e.target.value)}
           />
-          <button className="px-4 py-2 border rounded-lg hover:border-[var(--border)] w-full sm:w-auto">
+          <button
+            type="submit"
+            className="px-4 py-2 border rounded-lg hover:border-[var(--border)] w-full sm:w-auto"
+          >
             add task
           </button>
         </form>
@@ -401,8 +579,11 @@ const Tasks = () => {
               isInactive={false}
               onAddSubtask={addSubtaskToTask}
               onToggleSubtaskDone={toggleSubtaskDone}
+              onUpdateTaskTitle={updateTaskTitle}
               onUpdateSubtaskTitle={updateSubtaskTitle}
               onToggleTaskDoneNoSubs={toggleTaskDoneNoSubs}
+              onDeleteTask={deleteTask}
+              onDeleteSubtask={deleteSubtask}
             />
           ))}
         </div>
@@ -418,6 +599,7 @@ const Tasks = () => {
         <div className="space-y-3">
           {inactiveTasks.map((t) => {
             const finished = t.completed_at ? new Date(t.completed_at) : null;
+
             return (
               <div key={t.id}>
                 {finished && (
@@ -425,15 +607,19 @@ const Tasks = () => {
                     completed {finished.toLocaleDateString()}
                   </div>
                 )}
+
                 <TaskCard
                   task={t}
                   subs={subsByTask.get(t.id) || []}
                   isInactive={true}
                   onAddSubtask={() => {}}
                   onToggleSubtaskDone={toggleSubtaskDone}
+                  onUpdateTaskTitle={updateTaskTitle}
                   onUpdateSubtaskTitle={updateSubtaskTitle}
                   onToggleTaskDoneNoSubs={toggleTaskDoneNoSubs}
                   onReopenTask={reopenTask}
+                  onDeleteTask={deleteTask}
+                  onDeleteSubtask={deleteSubtask}
                 />
               </div>
             );

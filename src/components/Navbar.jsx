@@ -1,3 +1,5 @@
+// Navbar.jsx
+
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { UserAuth } from '../context/AuthContext';
